@@ -301,7 +301,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 95BFKR6QPQ;
+				DEVELOPMENT_TEAM = 322855S9WE;
 				GCC_INCREASE_PRECOMPILED_HEADER_SHARING = NO;
 				GCC_PREFIX_HEADER = "$(SRCROOT)/HandSignatureCapture/PrefixHeader.pch";
 				INFOPLIST_FILE = "$(SRCROOT)/HandSignatureCapture/Info.plist";
@@ -318,7 +318,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 95BFKR6QPQ;
+				DEVELOPMENT_TEAM = 322855S9WE;
 				GCC_INCREASE_PRECOMPILED_HEADER_SHARING = NO;
 				GCC_PREFIX_HEADER = "$(SRCROOT)/HandSignatureCapture/PrefixHeader.pch";
 				INFOPLIST_FILE = "$(SRCROOT)/HandSignatureCapture/Info.plist";

@@ -31,10 +31,21 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
     CGPoint previousPoint;
     BOOL isHaveDraw;
     int indexFlag;
+    
+    BOOL isTrack;
+    int trackTime;
+    
+    
+    NSInteger playTime;
+    NSInteger totalCount;
 }
 
 @property (nonatomic,strong) NSTimer        * oneSecond;
+@property (nonatomic,strong) NSTimer        * trackSecond;
 @property (nonatomic,strong) NSMutableArray * totalArr;
+@property (nonatomic,strong) NSMutableArray * trackArr;
+
+@property (nonatomic,strong) CADisplayLink  * disPlay;
 
 @end
 
@@ -45,17 +56,39 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
     if (self = [super initWithFrame:frame])
         [self commonInit];
     
-    self.totalArr        = [NSMutableArray arrayWithCapacity:0];
+    self.totalArr = [NSMutableArray arrayWithCapacity:0];
+    self.trackArr = [NSMutableArray arrayWithCapacity:0];
+
+    isHaveDraw    = NO;
+    indexFlag     = 0;
+
+    isTrack       = NO;
+    trackTime     = 0;
+    totalCount    = 0;
+    playTime = 0;
+
+    self.disPlay        = [CADisplayLink displayLinkWithTarget:self selector:@selector(secondAdd)];
+    self.disPlay.paused = YES;
+    [self.disPlay addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
     
-    isHaveDraw           = NO;
-    indexFlag            = 0;
-
-
     self.oneSecond = [NSTimer timerWithTimeInterval:1.0 repeats:YES block:^(NSTimer * _Nonnull timer) {
-        indexFlag ++;
+//        indexFlag ++;
     }];
     [[NSRunLoop mainRunLoop] addTimer:self.oneSecond forMode:NSRunLoopCommonModes];
     [self.oneSecond setFireDate:[NSDate distantFuture]];
+    
+    __weak typeof(self)weakSelf =self;
+    self.trackSecond = [NSTimer timerWithTimeInterval:1.0 repeats:YES block:^(NSTimer * _Nonnull timer) {
+        __strong typeof(weakSelf)strongSelf =weakSelf;
+        trackTime ++;
+        
+        if (trackTime>=2) {
+            [strongSelf.trackArr addObject:[NSNumber numberWithInteger:strongSelf.totalArr.count]];
+        }
+        
+    }];
+    [[NSRunLoop mainRunLoop] addTimer:self.trackSecond forMode:NSRunLoopCommonModes];
+    [self.trackSecond setFireDate:[NSDate distantFuture]];
     
     
     return self;
@@ -94,9 +127,20 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
 //    CGFloat currentY     = currentPoint.y;//触点Y
     
     if (pan.state ==UIGestureRecognizerStateBegan)
+    {
         [path moveToPoint:currentPoint];
+        
+        if (trackTime!=0) {
+            [self.trackSecond setFireDate:[NSDate distantFuture]];
+            trackTime = 0;
+        }
+    }
     else if (pan.state ==UIGestureRecognizerStateChanged)
         [path addQuadCurveToPoint:midPoint controlPoint:previousPoint];
+    else if (pan.state == UIGestureRecognizerStateEnded)
+        [self.trackSecond setFireDate:[NSDate date]];
+    
+        
     
 
     
@@ -172,23 +216,25 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
     
     NSLog(@"%d",indexFlag);
     
-    sender.userInteractionEnabled = NO;//防止扰乱动画
+    sender.userInteractionEnabled = NO;//重写 .防止扰乱动画
     self.userInteractionEnabled   = NO;
     sender.tag                    = 111;
     
     [self.layer removeAllAnimations];
     
-    [self.oneSecond setFireDate:[NSDate distantFuture]];
-
+    indexFlag = 0;
+//    [self.oneSecond setFireDate:[NSDate distantFuture]];
+    [self.trackSecond setFireDate:[NSDate distantFuture]];
     
-    CAKeyframeAnimation * animationFram =[CAKeyframeAnimation animationWithKeyPath:@"contents"];
-
-    animationFram.duration            = indexFlag * 0.6f;
-    animationFram.delegate            = self;
-    animationFram.values              = self.totalArr;
-//    animationFram.removedOnCompletion = NO;//保持动画结束时的状态
-//    animationFram.fillMode            = kCAFillModeForwards;
-    [self.layer addAnimation:animationFram forKey:nil];
+//    totalCount = self.totalArr.count;
+    
+    self.disPlay.paused = NO;
+    
+//    CAKeyframeAnimation * animationFram = [CAKeyframeAnimation animationWithKeyPath:@"contents"];
+//    animationFram.duration              = indexFlag*0.8;
+//    animationFram.delegate              = self;
+//    animationFram.values                = self.totalArr;
+//    [self.layer addAnimation:animationFram forKey:nil];
 }
 
 -(void)animationDidStop:(CAAnimation *)anim finished:(BOOL)flag
@@ -196,7 +242,74 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
     UIButton * tmpBtn             = [[UIApplication sharedApplication].keyWindow viewWithTag:111];
     tmpBtn.userInteractionEnabled = YES;
     
-//    [self.layer removeAllAnimations];
+}
+
+-(void)secondAdd{
+ 
+    
+//    if (totalCount%60 == 0) {
+//        //近似1s
+
+//
+//        if (playTime == [[self.trackArr objectAtIndex:playTime] integerValue]) {
+//            sleep(1);
+//            return;
+//        }
+//    }
+//    if ([self.trackArr containsObject:[NSNumber numberWithInt:indexFlag]]) {
+//        sleep(1);
+//        return;
+//    }
+    
+    
+    totalCount ++;
+    if (totalCount%2 ==0) {
+        
+        if (playTime < [self.trackArr.lastObject integerValue] ){
+            
+            if (indexFlag<= self.trackArr.count)  {//数组还有比对的意义
+                
+                if (playTime == [[self.trackArr objectAtIndex:indexFlag]integerValue]) {
+                    
+                    indexFlag ++;
+                    self.disPlay.paused = YES;
+                    
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        self.disPlay.paused = NO;
+                    });
+                    
+                    return;
+                }
+            }
+            playTime ++;
+        }
+        
+        if (playTime == self.totalArr.count ) {
+            self.disPlay.paused  = YES;
+            UIButton * tmpBtn             = [[UIApplication sharedApplication].keyWindow viewWithTag:111];
+            tmpBtn.userInteractionEnabled = YES;
+            [self.layer removeAllAnimations];//清空动画
+            return;
+        }
+        
+        self.layer.contents = [self.totalArr objectAtIndex:playTime];
+    }
+}
+
+-(void)pauseLayer:(CALayer*)layer {
+    CFTimeInterval pausedTime = [layer convertTime:CACurrentMediaTime() fromLayer:nil];
+    layer.speed               = 0.0;
+    layer.timeOffset          = pausedTime;
+}
+
+-(void)resumeLayer:(CALayer*)layer {
+    
+    CFTimeInterval pausedTime     = [layer timeOffset];
+    layer.speed                   = 1.0;
+    layer.timeOffset              = 0.0;
+    layer.beginTime               = 0.0;
+    CFTimeInterval timeSincePause = [layer convertTime:CACurrentMediaTime() fromLayer:nil] - pausedTime;
+    layer.beginTime               = timeSincePause;
 }
 
 
