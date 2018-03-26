@@ -27,24 +27,19 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
 
 @interface EasySignatureView ()<CAAnimationDelegate>
 {
-    UIBezierPath *path;
-    CGPoint previousPoint;
-    BOOL isHaveDraw;
-    int indexFlag;
-    
-    BOOL isTrack;
-    int trackTime;
-    
-    
-    NSInteger playTime;
-    NSInteger totalCount;
+    UIBezierPath *path;     //路径
+    CGPoint previousPoint;  //中点
+    BOOL isHaveDraw;        //是否画线
+    int indexFlag;          //停顿位 标识
+    int trackTime;          //停顿时间
+    NSInteger playTime;     //重放 帧数
+    NSInteger totalCount;   //速度控制
 }
 
-@property (nonatomic,strong) NSTimer        * oneSecond;
+
 @property (nonatomic,strong) NSTimer        * trackSecond;
 @property (nonatomic,strong) NSMutableArray * totalArr;
 @property (nonatomic,strong) NSMutableArray * trackArr;
-
 @property (nonatomic,strong) CADisplayLink  * disPlay;
 
 @end
@@ -54,58 +49,57 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
 - (id)initWithFrame:(CGRect)frame
 {
     if (self = [super initWithFrame:frame])
+    {
+        self.totalArr = [NSMutableArray arrayWithCapacity:0];
+        self.trackArr = [NSMutableArray arrayWithCapacity:0];
+        
+        
+        self.disPlay        = [CADisplayLink displayLinkWithTarget:self selector:@selector(secondAdd)];
+        self.disPlay.paused = YES;
+        [self.disPlay addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
+        
+        __weak typeof(self)weakSelf =self;
+        self.trackSecond = [NSTimer timerWithTimeInterval:1.0 repeats:YES block:^(NSTimer * _Nonnull timer) {
+            __strong typeof(weakSelf)strongSelf =weakSelf;
+            trackTime ++;
+            
+            if (trackTime>=2) {
+                [strongSelf.trackArr addObject:[NSNumber numberWithInteger:strongSelf.totalArr.count]];
+            }
+            
+        }];
+        [[NSRunLoop mainRunLoop] addTimer:self.trackSecond forMode:NSRunLoopCommonModes];
+        [self.trackSecond setFireDate:[NSDate distantFuture]];
+        
+        
+        path = [UIBezierPath bezierPath];
+        [path setLineWidth:2];
+        // Capture touches
+        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(pan:)];
+        pan.maximumNumberOfTouches = pan.minimumNumberOfTouches =1;
+        [self addGestureRecognizer:pan];
+        
+        
         [self commonInit];
-    
-    self.totalArr = [NSMutableArray arrayWithCapacity:0];
-    self.trackArr = [NSMutableArray arrayWithCapacity:0];
-
-    isHaveDraw    = NO;
-    indexFlag     = 0;
-
-    isTrack       = NO;
-    trackTime     = 0;
-    totalCount    = 0;
-    playTime = 0;
-
-    self.disPlay        = [CADisplayLink displayLinkWithTarget:self selector:@selector(secondAdd)];
-    self.disPlay.paused = YES;
-    [self.disPlay addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
-    
-    self.oneSecond = [NSTimer timerWithTimeInterval:1.0 repeats:YES block:^(NSTimer * _Nonnull timer) {
-//        indexFlag ++;
-    }];
-    [[NSRunLoop mainRunLoop] addTimer:self.oneSecond forMode:NSRunLoopCommonModes];
-    [self.oneSecond setFireDate:[NSDate distantFuture]];
-    
-    __weak typeof(self)weakSelf =self;
-    self.trackSecond = [NSTimer timerWithTimeInterval:1.0 repeats:YES block:^(NSTimer * _Nonnull timer) {
-        __strong typeof(weakSelf)strongSelf =weakSelf;
-        trackTime ++;
-        
-        if (trackTime>=2) {
-            [strongSelf.trackArr addObject:[NSNumber numberWithInteger:strongSelf.totalArr.count]];
-        }
-        
-    }];
-    [[NSRunLoop mainRunLoop] addTimer:self.trackSecond forMode:NSRunLoopCommonModes];
-    [self.trackSecond setFireDate:[NSDate distantFuture]];
-    
-    
+    }
     return self;
 }
 
 - (void)commonInit {
-    
-    path = [UIBezierPath bezierPath];
-    [path setLineWidth:2];
-    
     max = 0;
     min = 0;
     
-    // Capture touches
-    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(pan:)];
-    pan.maximumNumberOfTouches = pan.minimumNumberOfTouches =1;
-    [self addGestureRecognizer:pan];
+    isHaveDraw    = NO;
+    indexFlag     = 0;
+    trackTime     = 0;
+    totalCount    = 0;
+    playTime      = 0;
+    
+    previousPoint = CGPointMake(0, 0);
+    
+    [self.layer removeAllAnimations];//清空动画
+    
+//    [self.layer.contents removeAllObjects];
 }
 
 /**
@@ -115,10 +109,6 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
  */
 - (void)pan:(UIPanGestureRecognizer *)pan
 {
-    if (path.isEmpty)
-        [self.oneSecond setFireDate:[NSDate date]];
-    
-    
     isHaveDraw           = YES;
     CGPoint currentPoint = [pan locationInView:self];
     CGPoint midPoint     = midpoint(previousPoint, currentPoint);
@@ -129,7 +119,6 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
     if (pan.state ==UIGestureRecognizerStateBegan)
     {
         [path moveToPoint:currentPoint];
-        
         if (trackTime!=0) {
             [self.trackSecond setFireDate:[NSDate distantFuture]];
             trackTime = 0;
@@ -193,75 +182,33 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
 - (void)clear
 {
     //暂停定时
-    [self.oneSecond setFireDate:[NSDate distantFuture]];
-    [self.totalArr removeAllObjects];//清空图库
-
-    previousPoint = CGPointMake(1, 1);
-    max           = 0;
-    min           = 0;
-    [path removeAllPoints];//清空路径
-    indexFlag     = 0;
+    self.disPlay.paused = YES;
+    [self.trackSecond setFireDate:[NSDate distantFuture]];
+    [self.totalArr removeAllObjects];   //清空帧图
+    [self.trackArr removeAllObjects];   //清空等待
+    [self commonInit];
     
-    isHaveDraw = NO;
-    
-    [self.layer removeAllAnimations];//清空动画
-    
+    [path removeAllPoints];    //清空路径
     [self setNeedsDisplay];
-    
+
     self.userInteractionEnabled = YES;
 }
 
 
+
 - (void)sure:(UIButton*)sender{
-    
-    NSLog(@"%d",indexFlag);
     
     sender.userInteractionEnabled = NO;//重写 .防止扰乱动画
     self.userInteractionEnabled   = NO;
     sender.tag                    = 111;
     
-    [self.layer removeAllAnimations];
-    
-    indexFlag = 0;
-//    [self.oneSecond setFireDate:[NSDate distantFuture]];
     [self.trackSecond setFireDate:[NSDate distantFuture]];
     
-//    totalCount = self.totalArr.count;
-    
     self.disPlay.paused = NO;
-    
-//    CAKeyframeAnimation * animationFram = [CAKeyframeAnimation animationWithKeyPath:@"contents"];
-//    animationFram.duration              = indexFlag*0.8;
-//    animationFram.delegate              = self;
-//    animationFram.values                = self.totalArr;
-//    [self.layer addAnimation:animationFram forKey:nil];
-}
-
--(void)animationDidStop:(CAAnimation *)anim finished:(BOOL)flag
-{
-    UIButton * tmpBtn             = [[UIApplication sharedApplication].keyWindow viewWithTag:111];
-    tmpBtn.userInteractionEnabled = YES;
-    
 }
 
 -(void)secondAdd{
  
-    
-//    if (totalCount%60 == 0) {
-//        //近似1s
-
-//
-//        if (playTime == [[self.trackArr objectAtIndex:playTime] integerValue]) {
-//            sleep(1);
-//            return;
-//        }
-//    }
-//    if ([self.trackArr containsObject:[NSNumber numberWithInt:indexFlag]]) {
-//        sleep(1);
-//        return;
-//    }
-    
-    
     totalCount ++;
     if (totalCount%2 ==0) {
         
@@ -285,16 +232,59 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
         }
         
         if (playTime == self.totalArr.count ) {
-            self.disPlay.paused  = YES;
+            self.disPlay.paused           = YES;
             UIButton * tmpBtn             = [[UIApplication sharedApplication].keyWindow viewWithTag:111];
             tmpBtn.userInteractionEnabled = YES;
-            [self.layer removeAllAnimations];//清空动画
+            
+            [self commonInit];
             return;
         }
         
         self.layer.contents = [self.totalArr objectAtIndex:playTime];
     }
 }
+
+
+#pragma mark - -- MakeImage ---
+
+
+-(UIImage *) imageRepresentation {
+    
+    UIGraphicsBeginImageContextWithOptions(self.bounds.size,NO, [UIScreen mainScreen].scale);
+    
+    [self.layer renderInContext:UIGraphicsGetCurrentContext()];
+    
+    UIImage *image =UIGraphicsGetImageFromCurrentImageContext();
+    
+    UIGraphicsEndImageContext();
+    
+//        image = [self imageBlackToTransparent:image];
+    
+//    NSLog(@"width:%f,height:%f",image.size.width,image.size.height);
+    
+    //    UIImage *img = [self cutImage:image];
+    
+//    self.SignatureImg = image;//[self scaleToSize:img];
+    
+    return image;
+}
+
+//只截取签名部分图片
+- (UIImage *)cutImage
+{
+//    UIGraphicsBeginImageContext(self.bounds.size);
+    UIGraphicsBeginImageContextWithOptions(self.bounds.size,NO, [UIScreen mainScreen].scale);
+    
+    [self.layer renderInContext:UIGraphicsGetCurrentContext()];
+    
+    UIImage *image =UIGraphicsGetImageFromCurrentImageContext();
+    
+    UIGraphicsEndImageContext();
+    return image;
+}
+
+#pragma mark - -- 没有使用的方法 ---
+
 
 -(void)pauseLayer:(CALayer*)layer {
     CFTimeInterval pausedTime = [layer convertTime:CACurrentMediaTime() fromLayer:nil];
@@ -327,29 +317,7 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
 
 
 
-#pragma mark - -- MakeImage ---
 
-
--(UIImage *) imageRepresentation {
-    
-    UIGraphicsBeginImageContextWithOptions(self.bounds.size,NO, [UIScreen mainScreen].scale);
-    
-    [self.layer renderInContext:UIGraphicsGetCurrentContext()];
-    
-    UIImage *image =UIGraphicsGetImageFromCurrentImageContext();
-    
-    UIGraphicsEndImageContext();
-    
-//        image = [self imageBlackToTransparent:image];
-    
-//    NSLog(@"width:%f,height:%f",image.size.width,image.size.height);
-    
-    //    UIImage *img = [self cutImage:image];
-    
-//    self.SignatureImg = image;//[self scaleToSize:img];
-    
-    return image;
-}
 
 
 - (UIImage*) imageBlackToTransparent:(UIImage*) image
@@ -434,18 +402,7 @@ static CGPoint midpoint(CGPoint p0,CGPoint p1) {
     return scaledImage;
 }
 
-//只截取签名部分图片
-- (UIImage *)cutImage
-{
-    UIGraphicsBeginImageContext(self.bounds.size);
-    
-    [self.layer renderInContext:UIGraphicsGetCurrentContext()];
-    
-    UIImage *image =UIGraphicsGetImageFromCurrentImageContext();
-    
-    UIGraphicsEndImageContext();
-    return image;
-}
+
 
 //签名完成，给签名照添加新的水印
 - (UIImage *) addText:(UIImage *)img text:(NSString *)mark {
